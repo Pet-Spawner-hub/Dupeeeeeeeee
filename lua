@@ -1,72 +1,90 @@
 local player = game.Players.LocalPlayer
 local mouse = player:GetMouse()
 
--- GUI setup
+-- Create GUI
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "PetDupeGui"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- Draggable Duplicate Button
+-- Create the draggable "Duplicate" button
 local dupeButton = Instance.new("TextButton")
 dupeButton.Name = "DuplicateButton"
 dupeButton.Size = UDim2.new(0, 160, 0, 50)
 dupeButton.Position = UDim2.new(0.5, -80, 0.9, -25)
-dupeButton.BackgroundColor3 = Color3.new(0, 0, 0) -- Black button
+dupeButton.BackgroundColor3 = Color3.new(0, 0, 0) -- Black
 dupeButton.TextColor3 = Color3.new(1, 1, 1)
 dupeButton.Font = Enum.Font.SourceSansBold
-dupeButton.TextSize = 24
+dupeButton.TextSize = 22
 dupeButton.Text = "Duplicate"
 dupeButton.Draggable = true
 dupeButton.Active = true
 dupeButton.Selectable = true
 dupeButton.Parent = screenGui
 
--- Folder to hold visual clones
+-- Create a folder in Workspace to store visual clones
 local clonesFolder = workspace:FindFirstChild("VisualPetClones") or Instance.new("Folder")
 clonesFolder.Name = "VisualPetClones"
 clonesFolder.Parent = workspace
 
--- Function to get the pet you're holding
+-- Function: Get the pet from the Tool the player is holding
 local function getHeldPet()
-	local tool = player.Character and player.Character:FindFirstChildOfClass("Tool")
+	local character = player.Character or player.CharacterAdded:Wait()
+	local tool = character:FindFirstChildOfClass("Tool")
 	if not tool then return nil end
 
-	-- Assume the tool is the pet or contains the pet
-	local pet = tool:FindFirstChildWhichIsA("Model") or tool:FindFirstChild("Pet")
-	return pet
+	-- Try to find a model or pet part inside the tool
+	local petModel = tool:FindFirstChildWhichIsA("Model") or tool:FindFirstChild("Pet")
+	return petModel
 end
 
--- Function to duplicate the held pet
+-- Function: Duplicate the held pet visually
 local function duplicatePet()
-	local pet = getHeldPet()
-	if not pet then
-		warn("No held pet found!")
+	local heldPet = getHeldPet()
+	if not heldPet then
+		warn("No held pet found.")
 		return
 	end
 
-	local clone = pet:Clone()
-	clone.Name = "FakePet_" .. math.random(1000, 9999)
-	clone.Parent = clonesFolder
+	-- Clone the held pet
+	local petClone = heldPet:Clone()
+	petClone.Name = heldPet.Name .. "_Clone"
 
-	-- Match position near the player or original pet
-	if clone:IsA("Model") and clone.PrimaryPart then
-		local offset = Vector3.new(math.random(-3, 3), 0, math.random(-3, 3))
-		clone:SetPrimaryPartCFrame(player.Character:GetPrimaryPartCFrame() + offset)
+	-- Optional: Ensure clone has PrimaryPart if it's a model
+	if petClone:IsA("Model") then
+		if not petClone.PrimaryPart then
+			local primary = petClone:FindFirstChildWhichIsA("BasePart")
+			if primary then
+				petClone.PrimaryPart = primary
+			end
+		end
+
+		if petClone.PrimaryPart then
+			petClone:SetPrimaryPartCFrame((player.Character.PrimaryPart.CFrame or CFrame.new()) * CFrame.new(math.random(-4,4), 0, math.random(-4,4)))
+		end
+	elseif petClone:IsA("BasePart") then
+		petClone.Position = player.Character:GetPrimaryPartCFrame().Position + Vector3.new(3, 0, 0)
 	end
 
-	-- Copy stats if exist
-	if pet:FindFirstChild("Age") then
-		local age = pet.Age:Clone()
-		age.Parent = clone
-	end
-	if pet:FindFirstChild("Weight") then
-		local weight = pet.Weight:Clone()
-		weight.Parent = clone
+	-- Copy metadata if available: Age and Weight
+	local age = heldPet:FindFirstChild("Age")
+	local weight = heldPet:FindFirstChild("Weight")
+
+	if age then
+		local ageClone = age:Clone()
+		ageClone.Parent = petClone
 	end
 
-	print("Visual pet duplicated with age and weight!")
+	if weight then
+		local weightClone = weight:Clone()
+		weightClone.Parent = petClone
+	end
+
+	petClone.Parent = clonesFolder
+
+	print("✅ Visual pet clone created with name, age, and weight.")
 end
 
--- Connect button click to dupe
+-- Connect button click
 dupeButton.MouseButton1Click:Connect(duplicatePet)
+
