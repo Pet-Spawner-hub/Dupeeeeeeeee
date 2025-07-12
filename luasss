@@ -1,0 +1,123 @@
+local player = game.Players.LocalPlayer
+
+-- GUI Setup
+local gui = Instance.new("ScreenGui")
+gui.Name = "PetDupeGui"
+gui.Parent = player:WaitForChild("PlayerGui")
+
+-- Create draggable button
+local function createButton(name, text, pos, bgColor, textColor)
+    local b = Instance.new("TextButton", gui)
+    b.Name = name
+    b.Size = UDim2.new(0, 160, 0, 50)
+    b.Position = pos
+    b.BackgroundColor3 = bgColor
+    b.Text = text
+    b.TextColor3 = textColor
+    b.Font = Enum.Font.SourceSansBold
+    b.TextSize = 20
+    b.Draggable = true
+    b.Active = true
+    b.Selectable = true
+    return b
+end
+
+local dupBtn = createButton("DupBtn", "Duplicate", UDim2.new(0.3, 0, 0.9, -25), Color3.new(0,0,0), Color3.new(1,1,1))
+local cancelBtn = createButton("CancelBtn", "Cancel", UDim2.new(0.5, 0, 0.9, -25), Color3.new(0.1,0.1,0.1), Color3.new(1,0,0))
+cancelBtn.Visible = false
+
+-- Message label
+local msg = Instance.new("TextLabel", gui)
+msg.Size = UDim2.new(0, 300, 0, 40)
+msg.Position = UDim2.new(0.4, 0, 0.8, -80)
+msg.BackgroundColor3 = Color3.new(0,0,0)
+msg.TextColor3 = Color3.new(1,1,1)
+msg.Font = Enum.Font.SourceSansBold
+msg.TextSize = 20
+msg.Visible = false
+
+-- Setup inventory & clone folder
+local cloneFolder = Instance.new("Folder", workspace)
+cloneFolder.Name = "VisualPetClones"
+local invFolder = Instance.new("Folder", player)
+invFolder.Name = "FakeInventory"
+
+-- Duplication control
+local dupTask
+local canceled = false
+
+-- Gets the pet model inside held Tool
+local function getHeldPet()
+    local char = player.Character or player.CharacterAdded:Wait()
+    local tool = char:FindFirstChildOfClass("Tool")
+    if not tool then return end
+    local pet = tool:FindFirstChildWhichIsA("Model") or tool:FindFirstChild("Pet")
+    return pet, tool
+end
+
+-- Converts pet model into a draggable tool in FakeInventory
+local function addToFakeInventory(petModel)
+    local newTool = Instance.new("Tool")
+    newTool.Name = petModel.Name
+    newTool.RequiresHandle = false
+
+    local petClone = petModel:Clone()
+    petClone.Parent = newTool
+    newTool.Parent = invFolder
+
+    -- Enable drag/equip
+    newTool.Equipped:Connect(function()
+        if petClone.PrimaryPart then
+            petClone:SetPrimaryPartCFrame(player.Character.PrimaryPart.CFrame)
+            petClone.Parent = petClone.Parent
+        end
+    end)
+end
+
+-- Performs duplication after delay
+local function doDuplication()
+    msg.Visible = false
+    cancelBtn.Visible = false
+
+    local pet, _ = getHeldPet()
+    if not pet then return end
+
+    local clone = pet:Clone()
+    clone.Name = pet.Name .. "_Clone"
+    clone.Parent = cloneFolder
+
+    -- Copy Age and Weight values
+    for _, attr in ipairs({"Age","Weight"}) do
+        local val = pet:FindFirstChild(attr)
+        if val then val:Clone().Parent = clone end
+    end
+
+    cursor = addToFakeInventory(clone)
+    print("✅ Pet duplicated visually!")
+end
+
+-- Click handlers
+dupBtn.MouseButton1Click:Connect(function()
+    local pet = getHeldPet()
+    if not pet then
+        warn("Equip a pet tool first to duplicate.")
+        return
+    end
+    canceled = false
+
+    msg.Text = "Duping in 3 minutes..."
+    msg.Visible = true
+    cancelBtn.Visible = true
+
+    dupTask = task.delay(180, function()
+        if not canceled then doDuplication() end
+    end)
+end)
+
+cancelBtn.MouseButton1Click:Connect(function()
+    canceled = true
+    msg.Visible = false
+    cancelBtn.Visible = false
+    dupTask = nil
+    print("❌ Duplication canceled.")
+end)
