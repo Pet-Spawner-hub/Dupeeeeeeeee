@@ -1,0 +1,118 @@
+local player = game.Players.LocalPlayer
+local mouse = player:GetMouse()
+
+-- GUI Setup
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "PetDupeGui"
+
+local function createButton(name, text, pos, color)
+    local btn = Instance.new("TextButton", gui)
+    btn.Name = name
+    btn.Size = UDim2.new(0,160,0,50)
+    btn.Position = pos
+    btn.BackgroundColor3 = color
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 22
+    btn.Text = text
+    btn.Draggable = true
+    btn.Active = true
+    btn.Selectable = true
+    return btn
+end
+
+local dupeBtn = createButton("DuplicateButton","Duplicate",
+    UDim2.new(0.5,-170,0.9,-25), Color3.new(0,0,0))
+local cancelBtn = createButton("CancelButton","Cancel Duplication",
+    UDim2.new(0.5,10,0.9,-25), Color3.new(0.1,0.1,0.1))
+cancelBtn.TextColor3 = Color3.new(1,0,0)
+cancelBtn.Visible = false
+
+local msg = Instance.new("TextLabel", gui)
+msg.Size = UDim2.new(0,250,0,40)
+msg.Position = UDim2.new(0.5,-125,0.75,-25)
+msg.BackgroundColor3 = Color3.new(0,0,0)
+msg.TextColor3 = Color3.new(1,1,1)
+msg.Font = Enum.Font.SourceSansBold
+msg.TextSize = 20
+msg.Visible = false
+
+-- Folders
+local clonesFolder = workspace:FindFirstChild("VisualPetClones") or Instance.new("Folder", workspace)
+clonesFolder.Name = "VisualPetClones"
+
+local invFolder = player:FindFirstChild("FakeInventory") or Instance.new("Folder", player)
+invFolder.Name = "FakeInventory"
+
+-- Variables
+local dupThread
+local cancelled = false
+
+local function getHeldPet()
+    local char = player.Character or player.CharacterAdded:Wait()
+    local tool = char:FindFirstChildOfClass("Tool")
+    if not tool then return nil end
+    local pet = tool:FindFirstChildWhichIsA("Model") or tool:FindFirstChild("Pet")
+    return pet, tool
+end
+
+local function addToGameInventory(petModel)
+    -- Example placeholder: clone from template and add to player's GUI
+    local templates = game.ReplicatedStorage:FindFirstChild("PetTemplates")
+    if templates and templates:FindFirstChild(petModel.Name) then
+        local newItem = templates[petModel.Name]:Clone()
+        newItem.Parent = player.PlayerGui:FindFirstChild("InventoryGui") or player.PlayerGui
+    end
+end
+
+local function performDuplication()
+    local pet, tool = getHeldPet()
+    if not pet then
+        warn("Hold a pet tool first.")
+        return
+    end
+    cancelled = false
+    msg.Text = "Duping in 3 minutes..."
+    msg.Visible = true
+    cancelBtn.Visible = true
+
+    dupThread = task.delay(180, function()
+        if cancelled then return end
+        msg.Visible = false
+        cancelBtn.Visible = false
+
+        local clone = pet:Clone()
+        clone.Name = pet.Name .. "_Clone"
+        local primary = clone:FindFirstChildWhichIsA("BasePart")
+        if primary then
+            clone.PrimaryPart = primary
+            clone:SetPrimaryPartCFrame(player.Character.PrimaryPart.CFrame * CFrame.new(math.random(-5,5),0,math.random(-5,5)))
+        end
+
+        for _, key in ipairs({"Age","Weight"}) do
+            local v = pet:FindFirstChild(key)
+            if v then v:Clone().Parent = clone end
+        end
+
+        clone.Parent = clonesFolder
+        invFolder:ClearAllChildren()
+        local invCopy = clone:Clone()
+        invCopy.Parent = invFolder
+
+        addToGameInventory(clone)
+        print("✅ Pet duplicated visually and added to both inventories.")
+    end)
+end
+
+local function cancelDup()
+    if dupThread then
+        cancelled = true
+        msg.Visible = false
+        cancelBtn.Visible = false
+        dupThread = nil
+        print("❌ Duplication canceled.")
+    end
+end
+
+dupeBtn.MouseButton1Click:Connect(performDuplication)
+cancelBtn.MouseButton1Click:Connect(cancelDup)
